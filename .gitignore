@@ -36,3 +36,11 @@ src/assets/
 .env.production
 
 amplify.yml
+./config/*
+__pycache__/
+*.pyc
+.env
+.env.local
+*.pem
+*.key
+.DS_Store
