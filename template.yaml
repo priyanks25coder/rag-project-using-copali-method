@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: FastAPI on Lambda + cron cleanup jobs (EventBridge Scheduler)
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        QDRANT_URL: !Ref QdrantUrl
+        QDRANT_API_KEY: !Ref QdrantApiKey
+        S3_BUCKET_NAME: !Ref S3BucketName
+        # Add any other env vars your app needs here
+
+Parameters:
+  QdrantUrl:
+    Type: String
+  QdrantApiKey:
+    Type: String
+    NoEcho: true
+  S3BucketName:
+    Type: String
+
+Resources:
+
+  # ---------------- API Function ----------------
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.main.handler
+      Timeout: 30
+      MemorySize: 512
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - "https://your-amplify-domain.amplifyapp.com"
+          AllowMethods:
+            - "*"
+          AllowHeaders:
+            - "*"
+
+  # ---------------- Cron: expired documents (every 2 hours) ----------------
+  ExpiredDocsCleanupFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.jobs.lambda_handlers.expired_documents_handler
+      Timeout: 60
+      Events:
+        Every2Hours:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: "rate(2 hours)"
+
+  # ---------------- Cron: orphaned S3 files (daily midnight) ----------------
+  OrphanS3CleanupFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.jobs.lambda_handlers.orphaned_s3_handler
+      Timeout: 60
+      Events:
+        Daily:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: "cron(0 0 * * ? *)"
+
+Outputs:
+  ApiFunctionUrl:
+    Description: "FastAPI endpoint URL"
+    Value: !GetAtt ApiFunctionUrl.FunctionUrl
